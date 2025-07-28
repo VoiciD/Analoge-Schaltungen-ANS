@@ -14,19 +14,43 @@ import matplotlib.pyplot as plt
 
 from scipy.fftpack import fft
 import scipy.signal as signal
+#%% Welcomes message
+print("Welcome to Real Time Audio Filtering with a digital second order Biquad")
+#%% Parameter setzen
+biquad_design = True
+while biquad_design == True:
+    decision = input("Biquad over RC or fc?")
+    if decision == "RC":
+        rc_default = input("Default_settings?")
+        if rc_default == "yes":
+            R = 1000
+            C = 1*10**(-6)
+            w_0 = 1/(R*C)       #3-dB Grenzfrequenz
+            Q = int(input("Qualityfactor:"))    #Güte
+            H = int(input("Gain:"))             #Verstärkungsfaktor
+            biquad_design = False
+        elif rc_default == "no":
+            R = int(input("Resistor Value in [Ohm]:"))
+            C = int(input("Capacitor Value in [uF]:"))*10**(-6)
+            w_0 = 1/(R*C)       #3-dB Grenzfrequenz
+            Q = int(input("Qualityfactor:"))    #Güte
+            H = int(input("Gain:"))             #Verstärkungsfaktor
+            biquad_design = False
+        else:
+            print("no Setting")
+    elif decision == "fc":
+        fc = int(input("fc in [Hz]:"))
+        w_0 = 2*np.pi*fc
+        Q = int(input("Qualityfactor:"))    #Güte
+        H = int(input("Gain:"))             #Verstärkungsfaktor
+        biquad_design = False
+    else:
+        print("Please chosse between fc and RC")
 
 
-R = 1000
-C = 1*10**(-6)
-w_0 = 1/(R*C)       #3-dB Grenzfrequenz
-# fc = 1000
-# w_0 = 2*np.pi*fc
-Q = 1               #Güte
-H = 1               #Verstärkungsfaktor
 
 fs = 44100          #Sampling Rate
 
-w0_prewarp =  2*np.arctan(w_0)
 
 
 #%% Analoge Biquads
@@ -34,7 +58,7 @@ den = np.array([1/(w_0)**2,1/(w_0*Q),1])
 
 num_LP = np.array([H])
 num_HP = np.array([H/(w_0**2),0,0])
-num_BS = np.array([-H/(w_0**2),0,-H])
+num_BS = np.array([H/(w_0**2),0,H])
 num_BP = np.array([(-H/w_0),0])
 
 #%% Bilinear Transformation
@@ -109,7 +133,7 @@ info_monitor = p.get_device_info_by_index(monitor_index_number)
 CHUNK = 1024 * 4                                    # samples per frame
 FORMAT = pyaudio.paInt16                            # audio format (bytes per sample?)
 CHANNELS = 1                                        # single channel for microphone
-RATE = 44100                                        # samples per second
+RATE = fs                                           # samples per second
 
 stream = p.open(
     output_device_index=monitor_index_number,
@@ -122,10 +146,14 @@ stream = p.open(
 )
 #%% Canvas
 %matplotlib qt5
+plt.close('all')
 plt.figure(1)
+plt.plot(wz,20*np.log10(hz),label=lbl)
+plt.xlabel("Frequenz in [Hz]")
+plt.ylabel("Amplitude in [dB]")
 plt.title("Filterkurve")
-plt.plot(wz,20*np.log10(hz))
-
+plt.grid()
+plt.legend()
 
 fig, (ax1, ax2, ax3) = plt.subplots(3, figsize=(15, 7))
 # variable for plotting
@@ -165,14 +193,16 @@ plt.grid()
 ax2.set_title("FFT unfiltered")
 ax2.set_xlabel('Frequenz in [Hz]')
 ax2.set_ylabel('Amplitude in [dB]')
-ax2.set_xlim(20, RATE / 8)
+ax2.set_xlim(20, RATE / 2)
 ax2.grid()
 ax2.set_ylim(-100, 40)
+
 plt.subplots_adjust(hspace=0.6)
-ax3.set_xlim(20, RATE / 8)
+ax3.set_xlim(20, RATE / 2)
 ax3.grid()
 ax3.set_ylim(-100, 40)
 
+#%% Real Time Filtering
 print('stream started')
 
 while True:
@@ -185,15 +215,15 @@ while True:
     line.set_ydata(data_np)
     # compute FFT and update line
     data_np_filt = signal.sosfiltfilt(filtertype,data_np)
-    #data_np_filt = signal.sosfiltfilt(filtertype,data_np_filt)
+    data_np_filt = signal.sosfiltfilt(filtertype,data_np_filt)
 
     
     yf = fft(data_np)
     yf_filt = fft(data_np_filt)
+    data_np_filt2 = signal.sosfiltfilt(filtertype,data_np_filt) 
     
     line_fft.set_ydata(20*np.log10(np.abs(yf[0:CHUNK])  / (512 * CHUNK)))
     line_fft_filt.set_ydata(20*np.log10(np.abs(yf_filt[0:CHUNK])  / (512 * CHUNK)))
-    
     fig.canvas.draw()
     fig.canvas.flush_events()
 
